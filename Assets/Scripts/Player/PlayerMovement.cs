@@ -3,7 +3,7 @@ using UnityEngine.InputSystem;
 
 public class PlayerMovement : MonoBehaviour
 {
-    [SerializeField] GameObject playerSprite;
+    [SerializeField] GameObject player;
     InputAction moveInputAction;
     private void Start()
     {
@@ -12,6 +12,6 @@ public class PlayerMovement : MonoBehaviour
     private void Update()
     {
         Vector2 moveDirection = moveInputAction.ReadValue<Vector2>();
-        playerSprite.transform.Translate(moveDirection * GameManager.Instance.playerData.currentMovementSpeed * Time.deltaTime);
+        player.transform.Translate(moveDirection * GameManager.Instance.playerData.currentMovementSpeed * Time.deltaTime);
     }
 }

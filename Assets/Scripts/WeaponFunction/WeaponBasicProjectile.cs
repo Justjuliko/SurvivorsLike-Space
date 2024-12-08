@@ -6,39 +6,57 @@ using System.Linq;
 public class ProjectileShooter : MonoBehaviour
 {
     [Header("References")]
-    public Transform firePoint;  // The pivot point where the projectile will be shot from (assigned in the Inspector)
-    public GameObject projectilePrefab;  // The projectile prefab to be pooled (assigned in the Inspector)
-    public Transform target;  // The target the projectile will move towards (assigned in the Inspector)
-    public Transform poolParent;  // The parent GameObject for the object pool (assigned in the Inspector)
+    public string weaponName = "Gun";
+    public Transform firePoint; // The starting point of the projectile
+    public GameObject projectilePrefab; // The prefab of the projectile
+    public Transform target; // The target the projectile will move towards
+    public Transform poolParent; // Parent object for pooled projectiles
 
     [Header("Settings")]
-    public float projectileSpeed = 10f;  // Speed at which the projectile will travel
-    public int poolSize = 10;  // Number of projectiles to keep in the pool
-    public float projectileLifeTime;  // Time before the projectile disappears and is returned to the pool
-    public float shootingCooldown;  // The cooldown time between shots (in seconds)
+    public int poolSize = 10; // Number of projectiles in the pool
+    public float projectileSpeed = 1f; // Speed at which the projectile travels
+    public float projectileLifeTime = 1f; // Maximum lifetime of the projectile
+    public float shootingCooldown = 1f; // Time between each shot
+    public float maxHits = 1f; // Maximum number of hits a projectile can register before being returned to the pool
+    public float projectileArea = 1f; // The size of the projectile
 
-    private Queue<GameObject> projectilePool;  // A pool of inactive projectiles
+    private Queue<GameObject> projectilePool; // A pool of inactive projectiles
 
     private void Start()
     {
-        shootingCooldown = GetWeaponByName().currentCooldown;
+        GetWeaponAttributes();
 
-        // Initialize the pool of projectiles
+        // Initialize the projectile pool
         projectilePool = new Queue<GameObject>();
-
-        // Create the pool of projectiles and assign them as children of poolParent
         for (int i = 0; i < poolSize; i++)
         {
             GameObject projectile = Instantiate(projectilePrefab, poolParent);
-            projectile.SetActive(false);  // Deactivate projectiles at start
-            projectilePool.Enqueue(projectile);  // Add to the pool
+            projectile.SetActive(false); // Start inactive
+            projectilePool.Enqueue(projectile);
         }
+
+        // Start the shooting coroutine
         ShootProjectileWithCooldown();
     }
+
+    // Retrieve weapon attributes and apply them
+    public void GetWeaponAttributes()
+    {
+        Weapon weapon = GetWeaponByName();
+        if (weapon != null)
+        {
+            shootingCooldown = weapon.currentCooldown;
+            projectileSpeed = weapon.currentSpeed;
+            maxHits = weapon.currentMaxHits;
+            projectileArea = weapon.currentArea;
+        }
+    }
+
+    // Find the weapon by its name in the player's inventory
     public Weapon GetWeaponByName()
     {
         Weapon foundWeapon = GameManager.Instance.playerData.weaponInventory
-            .FirstOrDefault(weapon => weapon.weaponName == "Gun");
+            .FirstOrDefault(weapon => weapon.weaponName == weaponName);
 
         if (foundWeapon != null)
         {
@@ -47,69 +65,81 @@ public class ProjectileShooter : MonoBehaviour
         }
         else
         {
-            Debug.Log("Weapon not found.");
+            Debug.LogWarning("Weapon not found.");
             return null;
         }
     }
 
-    // Call this function to start the shooting process from another script
+    // Start the shooting coroutine
     public void ShootProjectileWithCooldown()
     {
         StartCoroutine(ShootProjectileCoroutine());
     }
 
-    // Coroutine to handle the cooldown and shooting
+    // Coroutine for handling shooting and cooldowns
     private IEnumerator ShootProjectileCoroutine()
     {
         while (true)
         {
-            // Check if there is an available projectile in the pool
             if (projectilePool.Count > 0)
             {
-                // Get a projectile from the pool
                 GameObject projectile = projectilePool.Dequeue();
-                projectile.SetActive(true);  // Activate the projectile
+                projectile.SetActive(true);
 
-                // Position the projectile at the fire point
+                // Set the size of the projectile
+                projectile.transform.localScale = new Vector3(projectileArea, projectileArea, 1);
+
+                // Set the position and direction of the projectile
                 projectile.transform.position = firePoint.position;
-
-                // Calculate the direction towards the target
                 Vector3 direction = (target.position - firePoint.position).normalized;
 
-                // Set the velocity of the projectile
-                Rigidbody2D rb = projectile.GetComponent<Rigidbody2D>();  // Assuming the projectile has a Rigidbody2D
+                // Assign velocity to the projectile
+                Rigidbody2D rb = projectile.GetComponent<Rigidbody2D>();
                 if (rb != null)
                 {
                     rb.linearVelocity = direction * projectileSpeed;
                 }
 
-                // Start the life timer for this projectile
-                StartCoroutine(ProjectileLifeTimer(projectile));
+                // Start handling lifetime and hits
+                StartCoroutine(HandleProjectileLifetime(projectile, maxHits));
 
-                // Wait for the cooldown time before allowing another shot
                 yield return new WaitForSeconds(shootingCooldown);
             }
             else
             {
                 Debug.LogWarning("No available projectiles in the pool!");
+                yield return null;
             }
         }
     }
 
-    // Coroutine to handle the lifetime of the projectile
-    private IEnumerator<WaitForSeconds> ProjectileLifeTimer(GameObject projectile)
+    // Coroutine to handle projectile lifetime and maximum hits
+    private IEnumerator HandleProjectileLifetime(GameObject projectile, float initialHits)
     {
-        // Wait for the specified lifetime
-        yield return new WaitForSeconds(projectileLifeTime);
+        int remainingHits = Mathf.CeilToInt(initialHits);
+        float timer = projectileLifeTime;
 
-        // Deactivate the projectile and return it to the pool
+        // Loop until the projectile expires or uses all its hits
+        while (timer > 0 && remainingHits > 0)
+        {
+            timer -= Time.deltaTime;
+            yield return null;
+        }
+
+        // Return the projectile to the pool when its lifetime ends or it runs out of hits
         ReturnProjectileToPool(projectile);
     }
 
-    // Function to return the projectile to the pool when it's no longer needed
+    // Return the projectile to the pool and reset its state
     public void ReturnProjectileToPool(GameObject projectile)
     {
-        projectile.SetActive(false);  // Deactivate the projectile
-        projectilePool.Enqueue(projectile);  // Add it back to the pool
+        Rigidbody2D rb = projectile.GetComponent<Rigidbody2D>();
+        if (rb != null)
+        {
+            rb.linearVelocity = Vector2.zero; // Reset the velocity
+        }
+
+        projectile.SetActive(false); // Deactivate the projectile
+        projectilePool.Enqueue(projectile); // Add it back to the pool
     }
 }

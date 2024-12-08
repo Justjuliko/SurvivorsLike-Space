@@ -46,9 +46,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   weaponName: Gun
   level: 1
+  maxLevel: 5
   baseDamage: 1
-  damageModifier: 0
+  damageModifier: 1
   baseCooldown: 1
   cooldownModifier: 1
-  baseMaxHits: 0
-  maxHitsModifier: 0
+  baseMaxHits: 1
+  maxHitsModifier: 1
+  baseSpeed: 1
+  speedModifier: 3
+  baseArea: 1
+  AreaModifier: 1
